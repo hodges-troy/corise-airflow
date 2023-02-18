@@ -1,0 +1,8 @@
+# virtual environments
+venv/*
+
+#pycharm
+.idea/*
+
+# Mac storage
+.DS_store
