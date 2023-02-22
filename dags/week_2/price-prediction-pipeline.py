@@ -9,8 +9,8 @@ from airflow.operators.empty import EmptyOperator
 from airflow.models.dag import DAG
 from airflow.decorators import task, task_group
 
-TRAINING_DATA_PATH = 'week-2/price_prediction_training_data.csv'
-# DATASET_NORM_WRITE_BUCKET = '' # Modify here
+TRAINING_DATA_PATH = "week-2/data/price_prediction_training_data.csv"
+MODEL_TRAINING_WRITE_BUCKET = "corise-airflow-tjh"
 
 VAL_END_INDEX = 31056
 
@@ -223,7 +223,7 @@ def prepare_model_inputs(df_final: pd.DataFrame):
     df_norm = pd.DataFrame(dataset_norm)
     client = GCSHook().get_conn()
     # 
-    write_bucket = client.bucket(DATASET_NORM_WRITE_BUCKET)
+    write_bucket = client.bucket(MODEL_TRAINING_WRITE_BUCKET)
     write_bucket.blob(TRAINING_DATA_PATH).upload_from_string(pd.DataFrame(dataset_norm).to_csv())
 
 
@@ -238,7 +238,7 @@ def read_dataset_norm():
     from airflow.providers.google.cloud.hooks.gcs import GCSHook
     import io
     client = GCSHook().get_conn()
-    read_bucket = client.bucket(DATASET_NORM_WRITE_BUCKET)
+    read_bucket = client.bucket(MODEL_TRAINING_WRITE_BUCKET)
     dataset_norm = pd.read_csv(io.BytesIO(read_bucket.blob(TRAINING_DATA_PATH).download_as_bytes())).to_numpy()
 
     return dataset_norm
@@ -304,9 +304,21 @@ def produce_indices() -> List[Tuple[np.ndarray, np.ndarray]]:
     The number of pairs produced here will be equivalent to the number of 
     mapped 'format_data_and_train_model' tasks you have 
     """
-    
-    # TODO Modify here
-
+    training_indices = []
+    val_indices = []
+    # set fraction of samples to use for training / validation split
+    frac_train_samples = 0.8
+    # set number of samples to use in training set
+    n_train_samples = int(np.floor((VAL_END_INDEX + 1) * frac_train_samples))
+    # set number of models to train. could be user input in refactor!
+    n_models = 5
+    for i in range(n_models):
+        # permute indices to choose random samples
+        permuted_indices = np.random.permutation(VAL_END_INDEX + 1)
+        # split indices into training and validation
+        training_indices.append(permuted_indices[:n_train_samples])
+        val_indices.append(permuted_indices[n_train_samples:VAL_END_INDEX])
+    return list(zip(training_indices, val_indices))
 
 
 @task
@@ -336,9 +348,21 @@ def select_best_model(models: List[xgb.Booster]):
     write this to GCS. The best_score is an attribute of the model, and corresponds to
     the highest eval score yielded during training.
     """
-
-   # TODO Modify here
-
+    from airflow.providers.google.cloud.hooks.gcs import GCSHook
+    import pickle
+    # select model with best score
+    best_model = max(models, key=lambda x: x.best_score)
+    # serialize the model
+    best_model_pkl = pickle.dumps(best_model)
+    # model path name
+    gcs_model_path = "week-2/models/xgboost_model.pickle"
+    # write to GCS
+    client = GCSHook()
+    client.upload(
+        bucket=MODEL_TRAINING_WRITE_BUCKET,
+        object_name=gcs_model_path,
+        data=best_model_pkl
+    )
 
 @task_group
 def join_data_and_add_features():
@@ -357,7 +381,7 @@ def join_data_and_add_features():
     df_weather = post_process_weather_df(df_weather)
     df_final = join_dataframes_and_post_process(df_energy, df_weather)
     df_final = add_features(df_final)
-    prepare_task = prepare_model_inputs(df_final)
+    prepare_model_inputs(df_final)
 
 
 @task_group
@@ -372,14 +396,15 @@ def train_and_select_best_model():
 
     Using different train/val splits, train multiple models and select the one with the best evaluation score.
     """
-
-    past_history = 24
-    future_target = 0
+    # TODO: Modify here to select best model and save it to GCS, using above
+    # methods including format_data_and_train_model, produce_indices,
+    # and select_best_model
     dataset_norm = read_dataset_norm()
-
-    # TODO: Modify here to select best model and save it to GCS, using above methods including
-    # format_data_and_train_model, produce_indices, and select_best_model
-
+    indices = produce_indices()
+    models = format_data_and_train_model.partial(
+        dataset_norm=dataset_norm
+    ).expand(indices=indices)
+    select_best_model(models)
 
 
 with DAG("energy_price_prediction",
