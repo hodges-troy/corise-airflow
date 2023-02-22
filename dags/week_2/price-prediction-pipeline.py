@@ -307,14 +307,14 @@ def produce_indices() -> List[Tuple[np.ndarray, np.ndarray]]:
     training_indices = []
     val_indices = []
     # set total number of samples to use. could be user input in refactor!
-    n_samples = np.floor(VAL_END_INDEX * 0.5)
+    n_samples = np.floor(VAL_END_INDEX * 0.3)
     # set fraction of samples to use for training / validation split. could
     # also be user input in refactor!
     frac_train_samples = 0.8
     # set number of samples to use in training set
     n_train_samples = int(np.floor(n_samples * frac_train_samples))
     # set number of models to train. could be user input in refactor!
-    n_models = 5
+    n_models = 3
     for i in range(n_models):
         # permute indices to choose random samples
         permuted_indices = np.random.permutation(VAL_END_INDEX + 1)
@@ -362,7 +362,7 @@ def select_best_model(models: List[xgb.Booster]):
     # write to GCS
     client = GCSHook()
     client.upload(
-        bucket=MODEL_TRAINING_WRITE_BUCKET,
+        bucket_name=MODEL_TRAINING_WRITE_BUCKET,
         object_name=gcs_model_path,
         data=best_model_pkl
     )
@@ -410,13 +410,17 @@ def train_and_select_best_model():
     select_best_model(models)
 
 
-with DAG("energy_price_prediction",
+with DAG(
+    "energy_price_prediction",
     schedule_interval=None,
     start_date=datetime(2021, 1, 1),
     tags=['model_training'],
     render_template_as_native_obj=True,
+    default_args={
+         "retries": 2
+    },
     concurrency=5
-    ) as dag:
+) as dag:
 
         group_1 = join_data_and_add_features() 
         group_2 = train_and_select_best_model()
