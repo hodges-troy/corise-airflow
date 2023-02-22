@@ -306,10 +306,13 @@ def produce_indices() -> List[Tuple[np.ndarray, np.ndarray]]:
     """
     training_indices = []
     val_indices = []
-    # set fraction of samples to use for training / validation split
+    # set total number of samples to use. could be user input in refactor!
+    n_samples = np.floor(VAL_END_INDEX * 0.5)
+    # set fraction of samples to use for training / validation split. could
+    # also be user input in refactor!
     frac_train_samples = 0.8
     # set number of samples to use in training set
-    n_train_samples = int(np.floor((VAL_END_INDEX + 1) * frac_train_samples))
+    n_train_samples = int(np.floor(n_samples * frac_train_samples))
     # set number of models to train. could be user input in refactor!
     n_models = 5
     for i in range(n_models):
