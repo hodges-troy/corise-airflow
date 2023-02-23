@@ -1,5 +1,5 @@
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -412,7 +412,8 @@ with DAG(
     tags=['model_training'],
     render_template_as_native_obj=True,
     default_args={
-         "retries": 2
+        "retries": 2,
+        "retry_delay": timedelta(seconds=10),
     },
     concurrency=5
 ) as dag:
