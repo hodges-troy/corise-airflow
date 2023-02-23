@@ -320,7 +320,7 @@ def produce_indices() -> List[Tuple[np.ndarray, np.ndarray]]:
         permuted_indices = np.random.permutation(VAL_END_INDEX + 1)
         # split indices into training and validation
         training_indices.append(permuted_indices[:n_train_samples])
-        val_indices.append(permuted_indices[n_train_samples:VAL_END_INDEX])
+        val_indices.append(permuted_indices[n_train_samples:n_samples])
     return list(zip(training_indices, val_indices))
 
 
