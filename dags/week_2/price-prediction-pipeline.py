@@ -352,19 +352,14 @@ def select_best_model(models: List[xgb.Booster]):
     the highest eval score yielded during training.
     """
     from airflow.providers.google.cloud.hooks.gcs import GCSHook
-    import pickle
-    # select model with best score
     best_model = max(models, key=lambda x: x.best_score)
-    # serialize the model
-    best_model_pkl = pickle.dumps(best_model)
-    # model path name
-    gcs_model_path = "week-2/models/xgboost_model.pickle"
-    # write to GCS
+    best_model.save_model("xgboost_model.json")
+    gcs_model_path = "week-2/models/xgboost_model.json"
     client = GCSHook()
     client.upload(
         bucket_name=MODEL_TRAINING_WRITE_BUCKET,
         object_name=gcs_model_path,
-        data=best_model_pkl
+        filename="xgboost_model.json"
     )
 
 @task_group
