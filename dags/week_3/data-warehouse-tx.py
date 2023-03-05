@@ -116,6 +116,7 @@ def data_warehouse_transform_dag():
                 BigQueryCreateExternalTableOperator(
                     task_id=f"create-{data_type}-external-table",
                     table_resource=table_resource,
+                    location=LOCATION,
                 )
             )
 
@@ -177,8 +178,8 @@ def data_warehouse_transform_dag():
     load_task >> create_bigquery_dataset_task
     external_table_task = create_external_tables()
     create_bigquery_dataset_task >> external_table_task
-    normal_view_task = produce_normalized_views()
-    external_table_task >> normal_view_task
+    # normal_view_task = produce_normalized_views()
+    # external_table_task >> normal_view_task
     # joined_view_task = produce_joined_view()
     # normal_view_task >> joined_view_task
 
