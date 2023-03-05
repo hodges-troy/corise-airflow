@@ -122,7 +122,11 @@ def data_warehouse_transform_dag():
                                  columns: List[str]) -> str:
         # TODO Modify here to produce a select statement by casting 'timestamp_column' to
         # TIMESTAMP type, and selecting all of the columns in 'columns'
-        pass
+        return f"""
+        SELECT 
+            CAST({timestamp_column} AS TIMESTAMP) AS {timestamp_column},
+            {', '.join(columns)}
+        """
 
     @task_group
     def produce_normalized_views():
@@ -134,6 +138,7 @@ def data_warehouse_transform_dag():
         # accepts the timestamp column, and essential columns for each of the datatypes and build a
         # select statement ptogrammatically, which can then be passed to the Airflow Operators.
         EmptyOperator(task_id='placeholder')
+
 
     @task_group
     def produce_joined_view():
