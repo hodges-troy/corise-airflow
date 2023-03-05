@@ -141,9 +141,7 @@ def data_warehouse_transform_dag():
         # accepts the timestamp column, and essential columns for each of the datatypes and build a
         # select statement ptogrammatically, which can then be passed to the Airflow Operators.
         # EmptyOperator(task_id='placeholder')
-
         tasks = []
-
         for data_type in DATA_TYPES:
             partial_select_statement = produce_select_statement(
                 timestamp_column=normalized_columns[data_type]["time"],
@@ -151,7 +149,7 @@ def data_warehouse_transform_dag():
             )
             full_select_statement = (
                 partial_select_statement +
-                f" FROM {PROJECT_ID}.{BQ_DATASET_NAME}.{data_type}_external"
+                f" FROM {PROJECT_ID}.{BQ_DATASET_NAME}.{data_type}_external;"
             )
             tasks.append(
                 BigQueryCreateEmptyTableOperator(
@@ -160,6 +158,7 @@ def data_warehouse_transform_dag():
                     table_id=f"{data_type}_normalized",
                     view={
                         "query": full_select_statement,
+                        "useLegacySql": False,
                     },
                     location=LOCATION
                 )
@@ -178,8 +177,8 @@ def data_warehouse_transform_dag():
     load_task >> create_bigquery_dataset_task
     external_table_task = create_external_tables()
     create_bigquery_dataset_task >> external_table_task
-    # normal_view_task = produce_normalized_views()
-    # external_table_task >> normal_view_task
+    normal_view_task = produce_normalized_views()
+    external_table_task >> normal_view_task
     # joined_view_task = produce_joined_view()
     # normal_view_task >> joined_view_task
 
