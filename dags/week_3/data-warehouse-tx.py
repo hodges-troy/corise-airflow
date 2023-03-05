@@ -164,8 +164,6 @@ def data_warehouse_transform_dag():
                 )
             )
 
-
-
     @task_group
     def produce_joined_view():
         from airflow.providers.google.cloud.operators.bigquery import \
@@ -193,7 +191,6 @@ def data_warehouse_transform_dag():
             },
             location=LOCATION
         )
-
 
     unzip_task = extract()
     load_task = load(unzip_task)
