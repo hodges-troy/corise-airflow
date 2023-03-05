@@ -114,13 +114,6 @@ def data_warehouse_transform_dag():
             tasks.append(
                 BigQueryCreateExternalTableOperator(
                     task_id=f"create-{data_type}-external-table",
-                    bucket=DESTINATION_BUCKET,
-                    source_objects=[f"week-3/{DATA_TYPES[0]}.parquet"],
-                    destination_project_dataset_table=(
-                        f"{PROJECT_ID}."
-                        f"{BQ_DATASET_NAME}."
-                        f"{data_type}_external"
-                    ),
                     table_resource=table_resource,
                 )
             )
