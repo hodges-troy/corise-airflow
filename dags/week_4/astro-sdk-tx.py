@@ -32,9 +32,13 @@ def extract_nonzero_columns(input_df: pd.DataFrame) -> pd.DataFrame:
     Fill null values with 0 for filtering and extract only columns that have
     """
     # TODO Modify here
-    # keep columns that have at least one non-zero value and fill in null values with 0
-    pass
-
+    input_df_filled = input_df.fillna(0)
+    # select columns that have any non-zero elements from original DF without
+    # filled null values. leaving zero values in can have unintended
+    # consequences on our features, like temperature. will leave NAs in until
+    # conversation with downstream teams on how to handle them.
+    nonzero_columns = input_df.loc[:, (input_df_filled != 0).any(axis=0)]
+    return nonzero_columns
 
 @aql.transform
 def convert_timestamp_columns(input_table: Table, data_type: str):
@@ -84,10 +88,19 @@ with DAG(
             output_table=Table(
                 name=f"{data_type}_raw",
                 metadata=Metadata(schema=BQ_DATASET_NAME),
-                gcp_conn_id=GCP_CONNECTION_ID,
+                conn_id=GCP_CONNECTION_ID,
             )
         )
-
         # Extract nonzero columns from that table
+        task_2 = extract_nonzero_columns(
+            task_id=f"extract_nonzero_cols_from_{data_type}",
+            input_df=task_1,
+        )
+        # Convert the timestamp column from that table
+        # task_3 = convert_timestamp_columns(
+        #     task_id=f"convert_timestamp_in_{data_type}",
+        #     input_table=task_2,
+        #     data_type=data_type,
+        # )
     # Cleans up all temporary tables produced by the SDK
     aql.cleanup()
