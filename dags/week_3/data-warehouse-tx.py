@@ -68,7 +68,7 @@ def data_warehouse_transform_dag():
     def create_bigquery_dataset():
         from airflow.providers.google.cloud.operators.bigquery import \
             BigQueryCreateEmptyDatasetOperator
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
         # TODO Modify here to create a BigQueryDataset if one does not already exist
         # This is where your tables and views will be created
         BigQueryCreateEmptyDatasetOperator(
@@ -82,7 +82,7 @@ def data_warehouse_transform_dag():
     def create_external_tables():
         from airflow.providers.google.cloud.operators.bigquery import \
             BigQueryCreateExternalTableOperator
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
 
         # TODO Modify here to produce two external tables, one for each data type, referencing the data stored in GCS
 
@@ -138,7 +138,7 @@ def data_warehouse_transform_dag():
         # columns in each datasource from string to time. The utility function 'produce_select_statement'
         # accepts the timestamp column, and essential columns for each of the datatypes and build a
         # select statement ptogrammatically, which can then be passed to the Airflow Operators.
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
 
         tasks = []
 
@@ -148,9 +148,8 @@ def data_warehouse_transform_dag():
                 columns=normalized_columns[data_type]["columns"]
             )
             full_select_statement = (
-                partial_select_statement + (
-                    f" FROM {BQ_DATASET_NAME}.{data_type}_external"
-                )
+                partial_select_statement +
+                f" FROM {PROJECT_ID}.{BQ_DATASET_NAME}.{data_type}_external"
             )
             tasks.append(
                 BigQueryCreateEmptyTableOperator(
@@ -176,8 +175,8 @@ def data_warehouse_transform_dag():
     load_task >> create_bigquery_dataset_task
     external_table_task = create_external_tables()
     create_bigquery_dataset_task >> external_table_task
-    # normal_view_task = produce_normalized_views()
-    # external_table_task >> normal_view_task
+    normal_view_task = produce_normalized_views()
+    external_table_task >> normal_view_task
     # joined_view_task = produce_joined_view()
     # normal_view_task >> joined_view_task
 
