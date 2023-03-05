@@ -126,7 +126,7 @@ with DAG(
             )
         )
     # Join the two tables produced at step 3 for each datatype on time
-    task_4 = join_tables(
+    join_gen_weather_tables = join_tables(
         generation_table=convert_timestamp_tasks[0],
         weather_table=convert_timestamp_tasks[1],
         output_table=Table(
