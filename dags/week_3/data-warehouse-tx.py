@@ -8,9 +8,9 @@ from airflow.operators.empty import EmptyOperator
 from common.week_3.config import DATA_TYPES, normalized_columns
 
 
-# PROJECT_ID = # Modify HERE
-# DESTINATION_BUCKET = # Modify HERE
-# BQ_DATASET_NAME = # Modify HERE
+PROJECT_ID = "corise-airflow-2023"
+DESTINATION_BUCKET = "corise-airflow-tjh"
+BQ_DATASET_NAME = "energy_prediction"
 
 
 @dag(
@@ -71,6 +71,13 @@ def data_warehouse_transform_dag():
         EmptyOperator(task_id='placeholder')
         # TODO Modify here to create a BigQueryDataset if one does not already exist
         # This is where your tables and views will be created
+        BigQueryCreateEmptyDatasetOperator(
+            task_id='create-bq-dataset',
+            dataset_id=BQ_DATASET_NAME,
+            project_id=PROJECT_ID,
+            exists_ok=True,
+        )
+
 
     @task_group
     def create_external_tables():
@@ -113,12 +120,12 @@ def data_warehouse_transform_dag():
     load_task = load(unzip_task)
     create_bigquery_dataset_task = create_bigquery_dataset()
     load_task >> create_bigquery_dataset_task
-    external_table_task = create_external_tables()
-    create_bigquery_dataset_task >> external_table_task
-    normal_view_task = produce_normalized_views()
-    external_table_task >> normal_view_task
-    joined_view_task = produce_joined_view()
-    normal_view_task >> joined_view_task
+    # external_table_task = create_external_tables()
+    # create_bigquery_dataset_task >> external_table_task
+    # normal_view_task = produce_normalized_views()
+    # external_table_task >> normal_view_task
+    # joined_view_task = produce_joined_view()
+    # normal_view_task >> joined_view_task
 
 
 data_warehouse_transform_dag = data_warehouse_transform_dag()
