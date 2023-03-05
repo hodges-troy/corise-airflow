@@ -40,6 +40,7 @@ def extract_nonzero_columns(input_df: pd.DataFrame) -> pd.DataFrame:
     nonzero_columns = input_df.loc[:, (input_df_filled != 0).any(axis=0)]
     return nonzero_columns
 
+
 @aql.transform
 def convert_timestamp_columns(input_table: Table, data_type: str):
     """
@@ -48,7 +49,12 @@ def convert_timestamp_columns(input_table: Table, data_type: str):
     """
     # TODO Modify here
     # parquet file has time column as string. Cast to TIMESTAMP.
-    pass
+    return f"""
+    SELECT
+        TIMESTAMP({time_columns[data_type]}) AS {time_columns[data_type]},
+        * except ({time_columns[data_type]})
+    FROM {{{{input_table}}}}
+    """
 
 
 @aql.transform
@@ -56,9 +62,15 @@ def join_tables(generation_table: Table, weather_table: Table):  # skipcq: PYL-W
     """
     Join `generation_table` and `weather_table` tables on time to create an output table
     """
-
-    # TODO Modify here    
-    pass
+    # TODO Modify here
+    return f"""
+    SELECT
+        g.*,
+        w.* except (dt_iso)
+    FROM {{{{generation_table}}}} g
+    JOIN {{{{weather_table}}}} w
+    ON g.time = w.dt_iso
+    """
 
               
 with DAG(
@@ -79,10 +91,10 @@ with DAG(
     # https://github.com/astronomer/astro-sdk/blob/main/python-sdk/example_dags/example_google_bigquery_gcs_load_and_save.py
     """
     # TODO Modify here
-
+    convert_timestamp_tasks = []
     for data_type in DATA_TYPES:
         # Load parquet files from GCS into BigQuery using Table object
-        task_1 = aql.load_file(
+        load_task = aql.load_file(
             task_id=f"load_{data_type}",
             input_file=File(path=filepaths[data_type]),
             output_table=Table(
@@ -91,16 +103,37 @@ with DAG(
                 conn_id=GCP_CONNECTION_ID,
             )
         )
-        # Extract nonzero columns from that table
-        task_2 = extract_nonzero_columns(
-            task_id=f"extract_nonzero_cols_from_{data_type}",
-            input_df=task_1,
+        # Extract nonzero columns from that table, store as temporary table
+        # in BQ
+        extract_col_task = extract_nonzero_columns(
+            # task_id=f"extract_nonzero_{data_type}",
+            input_df=load_task,
+            output_table=Table(
+                metadata=Metadata(schema=BQ_DATASET_NAME),
+                conn_id=GCP_CONNECTION_ID,
+            )
         )
-        # Convert the timestamp column from that table
-        # task_3 = convert_timestamp_columns(
-        #     task_id=f"convert_timestamp_in_{data_type}",
-        #     input_table=task_2,
-        #     data_type=data_type,
-        # )
+        # Convert the timestamp column from that table, store as temporary
+        # table in BQ
+        convert_timestamp_tasks.append(
+            convert_timestamp_columns(
+                input_table=extract_col_task,
+                data_type=data_type,
+                output_table=Table(
+                    metadata=Metadata(schema=BQ_DATASET_NAME),
+                    conn_id=GCP_CONNECTION_ID,
+                )
+            )
+        )
+    # Join the two tables produced at step 3 for each datatype on time
+    task_4 = join_tables(
+        generation_table=convert_timestamp_tasks[0],
+        weather_table=convert_timestamp_tasks[1],
+        output_table=Table(
+            name=f"{DATA_TYPES[0]}_{DATA_TYPES[1]}_native",
+            metadata=Metadata(schema=BQ_DATASET_NAME),
+            conn_id=GCP_CONNECTION_ID,
+        )
+    )
     # Cleans up all temporary tables produced by the SDK
     aql.cleanup()
