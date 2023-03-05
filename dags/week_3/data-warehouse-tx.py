@@ -11,7 +11,7 @@ from common.week_3.config import DATA_TYPES, normalized_columns
 PROJECT_ID = "corise-airflow-2023"
 DESTINATION_BUCKET = "corise-airflow-tjh"
 BQ_DATASET_NAME = "energy_prediction"
-
+LOCATION = "us-west2"
 
 @dag(
     schedule_interval=None,
@@ -76,6 +76,7 @@ def data_warehouse_transform_dag():
             dataset_id=BQ_DATASET_NAME,
             project_id=PROJECT_ID,
             exists_ok=True,
+            location=LOCATION,
         )
 
     @task_group
@@ -158,7 +159,8 @@ def data_warehouse_transform_dag():
                     table_id=f"{data_type}_normalized",
                     view={
                         "query": full_select_statement,
-                    }
+                    },
+                    location=LOCATION
                 )
             )
 
