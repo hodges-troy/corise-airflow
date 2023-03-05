@@ -164,12 +164,36 @@ def data_warehouse_transform_dag():
                 )
             )
 
+
+
     @task_group
     def produce_joined_view():
         from airflow.providers.google.cloud.operators.bigquery import \
             BigQueryCreateEmptyTableOperator
         # TODO Modify here to produce a view that joins the two normalized views on time
         EmptyOperator(task_id='placeholder')
+
+        # join two normalized views on time
+        select_statement = f"""
+        SELECT
+            a.*,
+            b.* except ({normalized_columns[DATA_TYPES[1]]["time"]})
+            FROM {PROJECT_ID}.{BQ_DATASET_NAME}.{DATA_TYPES[0]}_normalized AS a
+            JOIN {PROJECT_ID}.{BQ_DATASET_NAME}.{DATA_TYPES[1]}_normalized AS b
+            ON a.{normalized_columns[DATA_TYPES[0]]["time"]} = b.{normalized_columns[DATA_TYPES[1]]["time"]}
+        """
+        # create joined view
+        BigQueryCreateEmptyTableOperator(
+            task_id=f"create-joined-view",
+            dataset_id=BQ_DATASET_NAME,
+            table_id=f"{DATA_TYPES[0]}_{DATA_TYPES[1]}_normalized",
+            view={
+                "query": select_statement,
+                "useLegacySql": False,
+            },
+            location=LOCATION
+        )
+
 
     unzip_task = extract()
     load_task = load(unzip_task)
@@ -179,8 +203,8 @@ def data_warehouse_transform_dag():
     create_bigquery_dataset_task >> external_table_task
     normal_view_task = produce_normalized_views()
     external_table_task >> normal_view_task
-    # joined_view_task = produce_joined_view()
-    # normal_view_task >> joined_view_task
+    joined_view_task = produce_joined_view()
+    normal_view_task >> joined_view_task
 
 
 data_warehouse_transform_dag = data_warehouse_transform_dag()
