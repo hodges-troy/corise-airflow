@@ -42,7 +42,7 @@ def extract_nonzero_columns(input_df: pd.DataFrame) -> pd.DataFrame:
 
 
 @aql.transform
-def convert_timestamp_columns(input_table: Table, data_type: str):
+def convert_timestamp_columns(input_table: Table, data_type: str) -> Table:
     """
     Return a SQL statement that selects the input table elements, 
     casting the time column specified in 'time_columns' to TIMESTAMP
@@ -58,7 +58,7 @@ def convert_timestamp_columns(input_table: Table, data_type: str):
 
 
 @aql.transform
-def join_tables(generation_table: Table, weather_table: Table):  # skipcq: PYL-W0613
+def join_tables(generation_table: Table, weather_table: Table) -> Table:  # skipcq: PYL-W0613
     """
     Join `generation_table` and `weather_table` tables on time to create an output table
     """
