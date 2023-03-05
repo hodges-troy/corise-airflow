@@ -8,10 +8,10 @@ from airflow.operators.empty import EmptyOperator
 from common.week_3.config import DATA_TYPES, normalized_columns
 
 
-# PROJECT_ID = # Modify HERE
-# DESTINATION_BUCKET = # Modify HERE
-# BQ_DATASET_NAME = # Modify HERE
-
+PROJECT_ID = "corise-airflow-2023"
+DESTINATION_BUCKET = "corise-airflow-tjh"
+BQ_DATASET_NAME = "energy_prediction"
+LOCATION = "us-west2"
 
 @dag(
     schedule_interval=None,
@@ -68,15 +68,22 @@ def data_warehouse_transform_dag():
     def create_bigquery_dataset():
         from airflow.providers.google.cloud.operators.bigquery import \
             BigQueryCreateEmptyDatasetOperator
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
         # TODO Modify here to create a BigQueryDataset if one does not already exist
         # This is where your tables and views will be created
+        BigQueryCreateEmptyDatasetOperator(
+            task_id='create-bq-dataset',
+            dataset_id=BQ_DATASET_NAME,
+            project_id=PROJECT_ID,
+            exists_ok=True,
+            location=LOCATION,
+        )
 
     @task_group
     def create_external_tables():
         from airflow.providers.google.cloud.operators.bigquery import \
             BigQueryCreateExternalTableOperator
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
 
         # TODO Modify here to produce two external tables, one for each data type, referencing the data stored in GCS
 
@@ -85,11 +92,44 @@ def data_warehouse_transform_dag():
         # related to the built table_resource specifying csvOptions even though the desired format is
         # PARQUET.
 
+        # To ask -- how does Airflow know what to do with list of tasks?
+        # and each BQ Operator is a task?
+        tasks = []
+        for data_type in DATA_TYPES:
+
+            table_resource = {
+                "tableReference": {
+                    "projectId": PROJECT_ID,
+                    "datasetId": BQ_DATASET_NAME,
+                    "tableId": f"{data_type}_external",
+                },
+                "externalDataConfiguration": {
+                    "sourceUris":
+                        [
+                            f"gs://{DESTINATION_BUCKET}/week-3"
+                            f"/{data_type}.parquet"
+                        ],
+                    "sourceFormat": "PARQUET",
+                },
+            }
+            tasks.append(
+                BigQueryCreateExternalTableOperator(
+                    task_id=f"create-{data_type}-external-table",
+                    table_resource=table_resource,
+                    location=LOCATION,
+                )
+            )
+
     def produce_select_statement(timestamp_column: str,
                                  columns: List[str]) -> str:
         # TODO Modify here to produce a select statement by casting 'timestamp_column' to
         # TIMESTAMP type, and selecting all of the columns in 'columns'
-        pass
+        # I guess we don't need the table it pulls from here??
+        return f"""
+        SELECT 
+            CAST({timestamp_column} AS TIMESTAMP) AS {timestamp_column},
+            {', '.join(columns)}
+        """
 
     @task_group
     def produce_normalized_views():
@@ -100,7 +140,29 @@ def data_warehouse_transform_dag():
         # columns in each datasource from string to time. The utility function 'produce_select_statement'
         # accepts the timestamp column, and essential columns for each of the datatypes and build a
         # select statement ptogrammatically, which can then be passed to the Airflow Operators.
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
+        tasks = []
+        for data_type in DATA_TYPES:
+            partial_select_statement = produce_select_statement(
+                timestamp_column=normalized_columns[data_type]["time"],
+                columns=normalized_columns[data_type]["columns"]
+            )
+            full_select_statement = (
+                partial_select_statement +
+                f" FROM {PROJECT_ID}.{BQ_DATASET_NAME}.{data_type}_external;"
+            )
+            tasks.append(
+                BigQueryCreateEmptyTableOperator(
+                    task_id=f"create-{data_type}-normalized-view",
+                    dataset_id=BQ_DATASET_NAME,
+                    table_id=f"{data_type}_normalized",
+                    view={
+                        "query": full_select_statement,
+                        "useLegacySql": False,
+                    },
+                    location=LOCATION
+                )
+            )
 
     @task_group
     def produce_joined_view():
@@ -108,6 +170,27 @@ def data_warehouse_transform_dag():
             BigQueryCreateEmptyTableOperator
         # TODO Modify here to produce a view that joins the two normalized views on time
         EmptyOperator(task_id='placeholder')
+
+        # join two normalized views on time
+        select_statement = f"""
+        SELECT
+            a.*,
+            b.* except ({normalized_columns[DATA_TYPES[1]]["time"]})
+            FROM {PROJECT_ID}.{BQ_DATASET_NAME}.{DATA_TYPES[0]}_normalized AS a
+            JOIN {PROJECT_ID}.{BQ_DATASET_NAME}.{DATA_TYPES[1]}_normalized AS b
+            ON a.{normalized_columns[DATA_TYPES[0]]["time"]} = b.{normalized_columns[DATA_TYPES[1]]["time"]}
+        """
+        # create joined view
+        BigQueryCreateEmptyTableOperator(
+            task_id=f"create-joined-view",
+            dataset_id=BQ_DATASET_NAME,
+            table_id=f"{DATA_TYPES[0]}_{DATA_TYPES[1]}_normalized",
+            view={
+                "query": select_statement,
+                "useLegacySql": False,
+            },
+            location=LOCATION
+        )
 
     unzip_task = extract()
     load_task = load(unzip_task)
