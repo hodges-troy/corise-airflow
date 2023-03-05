@@ -91,9 +91,6 @@ def data_warehouse_transform_dag():
         # field to specify DDL configuration parameters. If you don't, then you will see an error
         # related to the built table_resource specifying csvOptions even though the desired format is
         # PARQUET.
-
-        # To ask -- how does Airflow know what to do with list of tasks?
-        # and each BQ Operator is a task?
         tasks = []
         for data_type in DATA_TYPES:
 
@@ -124,7 +121,6 @@ def data_warehouse_transform_dag():
                                  columns: List[str]) -> str:
         # TODO Modify here to produce a select statement by casting 'timestamp_column' to
         # TIMESTAMP type, and selecting all of the columns in 'columns'
-        # I guess we don't need the table it pulls from here??
         return f"""
         SELECT 
             CAST({timestamp_column} AS TIMESTAMP) AS {timestamp_column},
