@@ -119,7 +119,7 @@ def data_warehouse_transform_dag():
                     destination_project_dataset_table=(
                         f"{PROJECT_ID}."
                         f"{BQ_DATASET_NAME}."
-                        f"{DATA_TYPES[data_type]}_external"
+                        f"{data_type}_external"
                     ),
                     table_resource=table_resource,
                 )
