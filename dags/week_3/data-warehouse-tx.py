@@ -78,7 +78,6 @@ def data_warehouse_transform_dag():
             exists_ok=True,
         )
 
-
     @task_group
     def create_external_tables():
         from airflow.providers.google.cloud.operators.bigquery import \
@@ -91,6 +90,40 @@ def data_warehouse_transform_dag():
         # field to specify DDL configuration parameters. If you don't, then you will see an error
         # related to the built table_resource specifying csvOptions even though the desired format is
         # PARQUET.
+
+        # To ask -- how does Airflow know what to do with list of tasks?
+        # and each BQ Operator is a task?
+        tasks = []
+        for data_type in DATA_TYPES:
+
+            table_resource = {
+                "tableReference": {
+                    "projectId": PROJECT_ID,
+                    "datasetId": BQ_DATASET_NAME,
+                    "tableId": f"{data_type}_external",
+                },
+                "externalDataConfiguration": {
+                    "sourceUris":
+                        [
+                            f"gs://{DESTINATION_BUCKET}/week-3"
+                            f"/{data_type}.parquet"
+                        ],
+                    "sourceFormat": "PARQUET",
+                },
+            }
+            tasks.append(
+                BigQueryCreateExternalTableOperator(
+                    task_id=f"create-{data_type}-external-table",
+                    bucket=DESTINATION_BUCKET,
+                    source_objects=[f"week-3/{DATA_TYPES[0]}.parquet"],
+                    destination_project_dataset_table=(
+                        f"{PROJECT_ID}."
+                        f"{BQ_DATASET_NAME}."
+                        f"{DATA_TYPES[data_type]}_external"
+                    ),
+                    table_resource=table_resource,
+                )
+            )
 
     def produce_select_statement(timestamp_column: str,
                                  columns: List[str]) -> str:
@@ -120,8 +153,8 @@ def data_warehouse_transform_dag():
     load_task = load(unzip_task)
     create_bigquery_dataset_task = create_bigquery_dataset()
     load_task >> create_bigquery_dataset_task
-    # external_table_task = create_external_tables()
-    # create_bigquery_dataset_task >> external_table_task
+    external_table_task = create_external_tables()
+    create_bigquery_dataset_task >> external_table_task
     # normal_view_task = produce_normalized_views()
     # external_table_task >> normal_view_task
     # joined_view_task = produce_joined_view()
