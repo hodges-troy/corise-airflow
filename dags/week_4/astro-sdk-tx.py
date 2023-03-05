@@ -136,4 +136,6 @@ with DAG(
         )
     )
     # Cleans up all temporary tables produced by the SDK
-    aql.cleanup()
+    cleanup_temp_tables = aql.cleanup()
+    join_gen_weather_tables >> cleanup_temp_tables
+
