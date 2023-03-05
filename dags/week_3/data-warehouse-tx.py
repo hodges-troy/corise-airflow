@@ -165,7 +165,7 @@ def data_warehouse_transform_dag():
         from airflow.providers.google.cloud.operators.bigquery import \
             BigQueryCreateEmptyTableOperator
         # TODO Modify here to produce a view that joins the two normalized views on time
-        EmptyOperator(task_id='placeholder')
+        # EmptyOperator(task_id='placeholder')
 
         # join two normalized views on time
         select_statement = f"""
