@@ -122,6 +122,7 @@ def data_warehouse_transform_dag():
                                  columns: List[str]) -> str:
         # TODO Modify here to produce a select statement by casting 'timestamp_column' to
         # TIMESTAMP type, and selecting all of the columns in 'columns'
+        # I guess we don't need the table it pulls from here??
         return f"""
         SELECT 
             CAST({timestamp_column} AS TIMESTAMP) AS {timestamp_column},
@@ -139,6 +140,28 @@ def data_warehouse_transform_dag():
         # select statement ptogrammatically, which can then be passed to the Airflow Operators.
         EmptyOperator(task_id='placeholder')
 
+        tasks = []
+
+        for data_type in DATA_TYPES:
+            partial_select_statement = produce_select_statement(
+                timestamp_column=normalized_columns[data_type]["time"],
+                columns=normalized_columns[data_type]["columns"]
+            )
+            full_select_statement = (
+                partial_select_statement + (
+                    f" FROM {BQ_DATASET_NAME}.{data_type}_external"
+                )
+            )
+            tasks.append(
+                BigQueryCreateEmptyTableOperator(
+                    task_id=f"create-{data_type}-normalized-view",
+                    dataset_id=BQ_DATASET_NAME,
+                    table_id=f"{data_type}_normalized",
+                    view={
+                        "query": full_select_statement,
+                    }
+                )
+            )
 
     @task_group
     def produce_joined_view():
